@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0a0e1a;
+  --surface: #0f1629;
+  --border: #1e3a5f;
+  --accent: #00d4ff;
+  --accent-dim: #0099cc;
+  --text: #e0f0ff;
+  --text-muted: #5a7a9a;
+  --success: #00ff88;
+  --grid: rgba(0, 212, 255, 0.04);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: 'Courier New', Courier, monospace;
+  min-height: 100vh;
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
