@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 const CORRECT_PIN = process.env.NEXT_PUBLIC_CONTROL_PIN ?? '0000';
 
@@ -10,6 +10,8 @@ const MODES = [
   { id: 'mode3', label: 'CLOCK',     icon: '🕐', desc: 'Time display' },
   { id: 'mode4', label: 'STOCKS',    icon: '📈', desc: 'Market data' },
   { id: 'mode5', label: 'MLB',       icon: '⚾', desc: 'Live scores' },
+  { id: 'mode6', label: 'TEXT',      icon: '✏️', desc: 'Custom message' },
+  { id: 'mode7', label: 'TRAIN',     icon: '🚆', desc: 'CTA Brown Line' },
 ];
 
 const MLB_TEAMS = [
@@ -70,30 +72,19 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [unlocked, fetchMode]);
 
-  function handlePinDigit(digit: string) {
-    if (pinError) {
-      setPinError(false);
-      setPin(digit);
-      return;
-    }
-    const next = pin + digit;
-    if (next.length < 4) {
-      setPin(next);
-    } else {
-      if (next === CORRECT_PIN) {
+  const handlePinChange = useCallback((val: string) => {
+    const digits = val.replace(/\D/g, '').slice(0, 4);
+    setPin(digits);
+    setPinError(false);
+    if (digits.length === 4) {
+      if (digits === CORRECT_PIN) {
         setUnlocked(true);
       } else {
         setPinError(true);
-        setPin(next);
         setTimeout(() => { setPinError(false); setPin(''); }, 800);
       }
     }
-  }
-
-  function handlePinDelete() {
-    setPinError(false);
-    setPin(p => p.slice(0, -1));
-  }
+  }, []);
 
   async function switchMode(modeId: string) {
     if (switching) return;
@@ -111,7 +102,7 @@ export default function Home() {
   }
 
   if (!unlocked) {
-    return <PinScreen pin={pin} error={pinError} onDigit={handlePinDigit} onDelete={handlePinDelete} />;
+    return <PinScreen pin={pin} error={pinError} onChange={handlePinChange} onSubmit={() => handlePinChange(pin)} />;
   }
 
   return (
@@ -127,12 +118,10 @@ export default function Home() {
 // ── PIN Screen ────────────────────────────────────────────────────────────────
 
 function PinScreen({
-  pin, error, onDigit, onDelete,
+  pin, error, onChange, onSubmit,
 }: {
-  pin: string; error: boolean; onDigit: (d: string) => void; onDelete: () => void;
+  pin: string; error: boolean; onChange: (val: string) => void; onSubmit: () => void;
 }) {
-  const digits = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
-
   return (
     <main style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2rem', padding: '2rem' }}>
       <div style={{ textAlign: 'center' }}>
@@ -156,33 +145,53 @@ function PinScreen({
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem', width: '100%', maxWidth: '280px' }}>
-        {digits.map((d, i) => (
-          d === '' ? <div key={i} /> :
-          <button
-            key={i}
-            onClick={() => d === '⌫' ? onDelete() : onDigit(d)}
-            style={{
-              padding: '1.25rem',
-              fontSize: d === '⌫' ? '1.25rem' : '1.5rem',
-              fontFamily: 'inherit',
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              color: d === '⌫' ? 'var(--text-muted)' : 'var(--text)',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              transition: 'all 0.1s',
-              letterSpacing: '0.05em',
-            }}
-            onMouseDown={e => { (e.currentTarget.style.background = 'var(--border)'); (e.currentTarget.style.color = 'var(--accent)'); }}
-            onMouseUp={e => { (e.currentTarget.style.background = 'var(--surface)'); (e.currentTarget.style.color = d === '⌫' ? 'var(--text-muted)' : 'var(--text)'); }}
-            onTouchStart={e => { (e.currentTarget.style.background = 'var(--border)'); (e.currentTarget.style.color = 'var(--accent)'); }}
-            onTouchEnd={e => { (e.currentTarget.style.background = 'var(--surface)'); (e.currentTarget.style.color = d === '⌫' ? 'var(--text-muted)' : 'var(--text)'); }}
-          >
-            {d}
-          </button>
-        ))}
-      </div>
+      <input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        maxLength={4}
+        value={pin}
+        onChange={e => onChange(e.target.value.replace(/\D/g, '').slice(0, 4))}
+        placeholder="0000"
+        style={{
+          background: 'var(--surface)',
+          border: `1px solid ${error ? '#ff4444' : 'var(--border)'}`,
+          borderRadius: '8px',
+          color: 'var(--accent)',
+          fontSize: '16px',
+          textAlign: 'center',
+          padding: '1rem 1.5rem',
+          width: '100%',
+          maxWidth: '280px',
+          outline: 'none',
+          fontFamily: 'inherit',
+          letterSpacing: '0.3em',
+        }}
+      />
+
+      <button
+        onClick={onSubmit}
+        style={{
+          padding: '0.9rem 2rem',
+          background: 'rgba(0,212,255,0.1)',
+          border: '1px solid var(--accent)',
+          color: 'var(--accent)',
+          borderRadius: '8px',
+          cursor: 'pointer',
+          fontSize: '0.75rem',
+          letterSpacing: '0.25em',
+          fontFamily: 'inherit',
+          fontWeight: 'bold',
+          width: '100%',
+          maxWidth: '280px',
+        }}
+      >
+        UNLOCK
+      </button>
 
       {error && (
         <div style={{ color: '#ff4444', fontSize: '0.7rem', letterSpacing: '0.2em' }}>
@@ -250,7 +259,8 @@ function MlbTeamSelector() {
       {/* Header — always visible, click to collapse */}
       <div
         onClick={() => setCollapsed(v => !v)}
-        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: collapsed ? 0 : '0.5rem', cursor: 'pointer' }}
+        role="button"
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: collapsed ? 0 : '0.5rem', cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}
       >
         <div style={{ color: 'var(--text-muted)', fontSize: '0.65rem', letterSpacing: '0.2em' }}>
           TEAM FILTER
@@ -399,6 +409,238 @@ function MlbTeamSelector() {
   );
 }
 
+// ── Text Composer ─────────────────────────────────────────────────────────────
+
+const COLOR_PRESETS = [
+  { label: 'AMBER',  value: '0xFFCC00' },
+  { label: 'WHITE',  value: '0xFFFFFF' },
+  { label: 'CYAN',   value: '0x00D4FF' },
+  { label: 'GREEN',  value: '0x00FF66' },
+  { label: 'RED',    value: '0xFF2244' },
+  { label: 'ORANGE', value: '0xFF6600' },
+  { label: 'PINK',   value: '0xFF44AA' },
+  { label: 'BLUE',   value: '0x4488FF' },
+];
+
+function hexPreviewColor(v: string) {
+  return '#' + v.replace('0x', '');
+}
+
+function TextComposer() {
+  const [text, setText] = useState('');
+  const [color, setColor] = useState('0xFFCC00');
+  const [bold, setBold] = useState(false);
+  const [saveState, setSaveState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/text')
+      .then(r => r.json())
+      .then(d => {
+        if (d.text  !== undefined) setText(d.text);
+        if (d.color !== undefined) setColor(d.color);
+        if (d.bold  !== undefined) setBold(d.bold);
+      })
+      .catch(() => {});
+  }, []);
+
+  const send = async () => {
+    if (!text.trim() || saveState === 'sending') return;
+    setSaveState('sending');
+    try {
+      const res = await fetch('/api/text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text.trim(), color, bold }),
+      });
+      if (!res.ok) throw new Error();
+      setSaveState('sent');
+      setTimeout(() => setSaveState('idle'), 2000);
+    } catch {
+      setSaveState('error');
+      setTimeout(() => setSaveState('idle'), 2000);
+    }
+  };
+
+  // Estimate line count using same word-wrap logic as the server.
+  // Small font: 4px/char → ~16 chars/line. Bold: ~5px/char → ~12 chars/line.
+  const charsPerLine = bold ? 12 : 16;
+  const estLines = text.split('\n').reduce((acc, para) => {
+    const words = para.split(/\s+/).filter(Boolean);
+    if (!words.length) return acc + 1;
+    let lineCount = 1, lineLen = 0;
+    for (const w of words) {
+      if (lineLen && lineLen + 1 + w.length > charsPerLine) { lineCount++; lineLen = w.length; }
+      else { lineLen = lineLen ? lineLen + 1 + w.length : w.length; }
+    }
+    return acc + lineCount;
+  }, 0) || 1;
+  const willScroll = estLines > 3;
+
+  return (
+    <div style={{
+      background: 'var(--surface)',
+      border: '1px solid var(--border)',
+      borderRadius: '12px',
+      padding: '1.25rem',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '2px', background: 'linear-gradient(90deg, transparent, #CC44FF, transparent)' }} />
+
+      {/* Header */}
+      <div
+        onClick={() => setCollapsed(v => !v)}
+        role="button"
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: collapsed ? 0 : '1rem', cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}
+      >
+        <div style={{ color: 'var(--text-muted)', fontSize: '0.65rem', letterSpacing: '0.2em' }}>
+          MESSAGE COMPOSER
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          {willScroll && !collapsed && (
+            <span style={{ color: '#CC44FF', fontSize: '0.55rem', letterSpacing: '0.1em' }}>↕ SCROLL</span>
+          )}
+          <span style={{ color: 'var(--text-muted)', fontSize: '0.65rem', transition: 'transform 0.2s', display: 'inline-block', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
+            ▼
+          </span>
+        </div>
+      </div>
+
+      {!collapsed && (
+        <>
+          {/* Text input */}
+          <div style={{ marginBottom: '1rem' }}>
+            <textarea
+              value={text}
+              onChange={e => setText(e.target.value)}
+              placeholder="Type your message..."
+              rows={4}
+              style={{
+                width: '100%',
+                background: 'rgba(0,0,0,0.3)',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                color: 'var(--text)',
+                fontSize: '0.85rem',
+                fontFamily: 'inherit',
+                padding: '0.75rem',
+                outline: 'none',
+                resize: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.3rem' }}>
+              <span style={{ color: willScroll ? '#CC44FF' : 'var(--text-muted)', fontSize: '0.55rem', letterSpacing: '0.1em' }}>
+                {estLines} {estLines === 1 ? 'LINE' : 'LINES'}{willScroll ? ' — ↕ SCROLLS' : ''}
+              </span>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.55rem' }}>{text.length} CHARS</span>
+            </div>
+          </div>
+
+          {/* Bold toggle */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.65rem', letterSpacing: '0.15em' }}>STYLE</span>
+            <button
+              onClick={() => setBold(v => !v)}
+              style={{
+                padding: '0.25rem 0.75rem',
+                background: bold ? 'rgba(204,68,255,0.15)' : 'transparent',
+                border: `1px solid ${bold ? '#CC44FF' : 'var(--border)'}`,
+                color: bold ? '#CC44FF' : 'var(--text-muted)',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '0.65rem',
+                fontWeight: 'bold',
+                letterSpacing: '0.1em',
+                fontFamily: 'inherit',
+              }}
+            >
+              BOLD
+            </button>
+          </div>
+
+          {/* Color swatches */}
+          <div style={{ marginBottom: '1rem' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.65rem', letterSpacing: '0.15em', marginBottom: '0.5rem' }}>
+              COLOR
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+              {COLOR_PRESETS.map(preset => {
+                const isOn = color === preset.value;
+                return (
+                  <button
+                    key={preset.value}
+                    onClick={() => setColor(preset.value)}
+                    title={preset.label}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      padding: '0.3rem 0.55rem',
+                      background: isOn ? `${hexPreviewColor(preset.value)}22` : 'transparent',
+                      border: `1px solid ${isOn ? hexPreviewColor(preset.value) : 'var(--border)'}`,
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      fontSize: '0.6rem',
+                      letterSpacing: '0.08em',
+                      color: isOn ? hexPreviewColor(preset.value) : 'var(--text-muted)',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    <span style={{
+                      width: '8px', height: '8px', borderRadius: '50%',
+                      background: hexPreviewColor(preset.value),
+                      flexShrink: 0,
+                      boxShadow: isOn ? `0 0 6px ${hexPreviewColor(preset.value)}` : 'none',
+                    }} />
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Send button */}
+          <button
+            onClick={send}
+            disabled={!text.trim() || saveState === 'sending'}
+            style={{
+              width: '100%',
+              padding: '0.75rem',
+              background: saveState === 'sent'  ? 'rgba(0,204,102,0.15)'  :
+                          saveState === 'error' ? 'rgba(204,0,0,0.15)'    :
+                          'rgba(204,68,255,0.1)',
+              border: `1px solid ${
+                saveState === 'sent'  ? 'var(--success)' :
+                saveState === 'error' ? '#CC0000'         :
+                '#CC44FF'
+              }`,
+              color: saveState === 'sent'  ? 'var(--success)' :
+                     saveState === 'error' ? '#CC0000'         :
+                     '#CC44FF',
+              borderRadius: '8px',
+              cursor: (!text.trim() || saveState === 'sending') ? 'not-allowed' : 'pointer',
+              fontSize: '0.7rem',
+              letterSpacing: '0.2em',
+              fontFamily: 'inherit',
+              fontWeight: 'bold',
+              transition: 'all 0.2s',
+              opacity: !text.trim() ? 0.5 : 1,
+            }}
+          >
+            {saveState === 'sending' ? '...'      :
+             saveState === 'sent'    ? 'SENT ✓'   :
+             saveState === 'error'   ? 'ERROR ✕'  :
+             'SEND TO DISPLAY'}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Control Panel ─────────────────────────────────────────────────────────────
 
 function ControlPanel({
@@ -521,6 +763,9 @@ function ControlPanel({
 
       {/* MLB Team Filter — always visible when MLB is active */}
       {currentMode === 'mode5' && <MlbTeamSelector />}
+
+      {/* Text Composer — shown when TEXT mode is active */}
+      {currentMode === 'mode6' && <TextComposer />}
 
       <div style={{ marginTop: 'auto', color: 'var(--text-muted)', fontSize: '0.6rem', letterSpacing: '0.15em', textAlign: 'center' }}>
         TINYTRON v1.0 // {new Date().getFullYear()}

@@ -16,6 +16,14 @@
   box-sizing: border-box;
 }
 
+@layer base {
+  button {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+}
+
 body {
   background-color: var(--bg);
   color: var(--text);
