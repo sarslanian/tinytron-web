@@ -12,7 +12,11 @@ const MODES = [
   { id: 'mode5', label: 'MLB',       icon: '⚾', desc: 'Live scores' },
   { id: 'mode6', label: 'TEXT',      icon: '✏️', desc: 'Custom message' },
   { id: 'mode7', label: 'TRAIN',     icon: '🚆', desc: 'CTA Brown Line' },
+  { id: 'mode8', label: 'CFB',       icon: '🏟️', desc: 'College scores' },
 ];
+
+// Modes with a settings panel below the grid
+const CONFIGURABLE_MODES = ['mode5', 'mode8'];
 
 const MLB_TEAMS = [
   { id: 109, abbr: 'ARI', name: 'Arizona Diamondbacks' },
@@ -409,6 +413,233 @@ function MlbTeamSelector() {
   );
 }
 
+// ── CFB Filter ────────────────────────────────────────────────────────────────
+
+type CfbFilter = 'all' | 'ranked' | 'teams';
+type CfbTeam = { id: string; abbr: string; name: string; conference: string };
+
+const CFB_ACCENT = '#CC6600';
+
+const CFB_FILTER_OPTIONS: { id: CfbFilter; label: string; hint: string }[] = [
+  { id: 'all',    label: 'ALL',      hint: 'Every game with a Power 4 (incl. Notre Dame) or ranked team' },
+  { id: 'ranked', label: 'RANKED',   hint: 'Games with at least one AP Top 25 team' },
+  { id: 'teams',  label: 'MY TEAMS', hint: 'Only your teams · falls back to ranked games on a bye' },
+];
+
+function CfbFilterPanel() {
+  const [filter, setFilter] = useState<CfbFilter>('ranked');
+  const [selected, setSelected] = useState<string[]>([]);
+  const [teams, setTeams] = useState<CfbTeam[]>([]);
+  const [query, setQuery] = useState('');
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [collapsed, setCollapsed] = useState(false);
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    fetch('/api/cfb-config')
+      .then(r => r.json())
+      .then(d => {
+        if (d.filter) setFilter(d.filter);
+        if (Array.isArray(d.teams)) setSelected(d.teams);
+      })
+      .catch(() => {});
+    fetch('/api/cfb-teams')
+      .then(r => r.json())
+      .then(d => setTeams(d.teams || []))
+      .catch(() => {});
+  }, []);
+
+  // Every change saves immediately — there's no draft state worth holding
+  const save = async (next: { filter?: CfbFilter; teams?: string[] }) => {
+    setSaveState('saving');
+    try {
+      const res = await fetch('/api/cfb-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(next),
+      });
+      if (!res.ok) throw new Error('server error');
+      setSaveState('saved');
+    } catch {
+      setSaveState('error');
+    }
+    if (savedTimer.current) clearTimeout(savedTimer.current);
+    savedTimer.current = setTimeout(() => setSaveState('idle'), 1500);
+  };
+
+  const pickFilter = (f: CfbFilter) => {
+    setFilter(f);
+    save({ filter: f });
+  };
+
+  const toggleTeam = (id: string) => {
+    const next = selected.includes(id) ? selected.filter(t => t !== id) : [...selected, id];
+    setSelected(next);
+    save({ teams: next });
+  };
+
+  const byId = new Map(teams.map(t => [t.id, t]));
+  const q = query.trim().toLowerCase();
+  const matches = q
+    ? teams.filter(t =>
+        t.name.toLowerCase().includes(q) ||
+        t.abbr.toLowerCase().includes(q) ||
+        t.conference.toLowerCase().includes(q)
+      ).slice(0, 12)
+    : [];
+
+  const statusLabel =
+    saveState === 'saving' ? 'SAVING…' :
+    saveState === 'saved'  ? 'SAVED ✓' :
+    saveState === 'error'  ? 'ERROR ✕' :
+    filter === 'teams' ? `${selected.length} TEAM${selected.length === 1 ? '' : 'S'}` :
+    CFB_FILTER_OPTIONS.find(o => o.id === filter)?.label;
+
+  const chipStyle = (on: boolean) => ({
+    padding: '0.3rem 0.5rem',
+    fontSize: '0.65rem',
+    fontFamily: 'inherit',
+    letterSpacing: '0.08em',
+    fontWeight: on ? 'bold' : 'normal',
+    background: on ? 'rgba(204,102,0,0.15)' : 'transparent',
+    border: `1px solid ${on ? CFB_ACCENT : 'var(--border)'}`,
+    color: on ? CFB_ACCENT : 'var(--text-muted)',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+  } as const);
+
+  return (
+    <div style={{
+      background: 'var(--surface)',
+      border: '1px solid var(--border)',
+      borderRadius: '12px',
+      padding: '1.25rem',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '2px', background: `linear-gradient(90deg, transparent, ${CFB_ACCENT}, transparent)` }} />
+
+      {/* Header — click to collapse */}
+      <div
+        onClick={() => setCollapsed(v => !v)}
+        role="button"
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: collapsed ? 0 : '1rem', cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', userSelect: 'none' }}
+      >
+        <div style={{ color: 'var(--text-muted)', fontSize: '0.65rem', letterSpacing: '0.2em' }}>
+          GAME FILTER
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <span style={{
+            color: saveState === 'saved' ? 'var(--success)' : saveState === 'error' ? '#CC0000' : 'var(--text-muted)',
+            fontSize: '0.6rem',
+          }}>
+            {statusLabel}
+          </span>
+          <span style={{ color: 'var(--text-muted)', fontSize: '0.65rem', transition: 'transform 0.2s', display: 'inline-block', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
+            ▼
+          </span>
+        </div>
+      </div>
+
+      {!collapsed && <>
+
+      {/* Filter segmented control */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.4rem', marginBottom: '0.5rem' }}>
+        {CFB_FILTER_OPTIONS.map(opt => {
+          const on = filter === opt.id;
+          return (
+            <button
+              key={opt.id}
+              onClick={() => pickFilter(opt.id)}
+              style={{ ...chipStyle(on), padding: '0.6rem 0.25rem', fontSize: '0.65rem', fontWeight: 'bold', letterSpacing: '0.12em', boxShadow: on ? '0 0 6px rgba(204,102,0,0.3)' : 'none' }}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ color: 'var(--text-muted)', fontSize: '0.6rem', letterSpacing: '0.08em', marginBottom: filter === 'teams' ? '1rem' : 0 }}>
+        {CFB_FILTER_OPTIONS.find(o => o.id === filter)?.hint}
+      </div>
+
+      {filter === 'teams' && <>
+        {/* Selected teams */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.75rem' }}>
+          {selected.length === 0 && (
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.6rem', letterSpacing: '0.08em' }}>
+              No teams yet · search below
+            </span>
+          )}
+          {selected.map(id => {
+            const team = byId.get(id);
+            return (
+              <button key={id} onClick={() => toggleTeam(id)} title={team ? `Remove ${team.name}` : 'Remove'} style={chipStyle(true)}>
+                {team?.abbr ?? id} ✕
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Search */}
+        <input
+          type="text"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder={teams.length ? `Search ${teams.length} FBS teams…` : 'Loading teams…'}
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          style={{
+            width: '100%',
+            background: 'rgba(0,0,0,0.3)',
+            border: '1px solid var(--border)',
+            borderRadius: '8px',
+            color: 'var(--text)',
+            fontSize: '16px',
+            fontFamily: 'inherit',
+            padding: '0.6rem 0.75rem',
+            outline: 'none',
+            boxSizing: 'border-box',
+          }}
+        />
+
+        {matches.length > 0 && (
+          <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+            {matches.map(team => {
+              const on = selected.includes(team.id);
+              return (
+                <button
+                  key={team.id}
+                  onClick={() => toggleTeam(team.id)}
+                  style={{
+                    ...chipStyle(on),
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '0.5rem 0.6rem',
+                    textAlign: 'left',
+                  }}
+                >
+                  <span>
+                    <span style={{ display: 'inline-block', minWidth: '3rem', fontWeight: 'bold' }}>{team.abbr}</span>
+                    {team.name}
+                  </span>
+                  <span style={{ fontSize: '0.55rem', opacity: 0.7 }}>
+                    {on ? '✓' : team.conference}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </>}
+
+      </>}
+    </div>
+  );
+}
+
 // ── Text Composer ─────────────────────────────────────────────────────────────
 
 const COLOR_PRESETS = [
@@ -701,7 +932,7 @@ function ControlPanel({
         {MODES.map(mode => {
           const isActive = currentMode === mode.id;
           const isLoading = switching === mode.id;
-          const isMlb = mode.id === 'mode5';
+          const hasSettings = CONFIGURABLE_MODES.includes(mode.id);
           return (
             <button
               key={mode.id}
@@ -746,8 +977,8 @@ function ControlPanel({
                   boxShadow: '0 0 6px var(--success)',
                 }} />
               )}
-              {/* Settings gear indicator for MLB */}
-              {isMlb && (
+              {/* Settings gear indicator for modes with a settings panel */}
+              {hasSettings && (
                 <div style={{
                   position: 'absolute', bottom: '0.75rem', right: '0.75rem',
                   fontSize: '0.6rem', color: isActive ? 'var(--accent)' : 'var(--text-muted)',
@@ -763,6 +994,9 @@ function ControlPanel({
 
       {/* MLB Team Filter — always visible when MLB is active */}
       {currentMode === 'mode5' && <MlbTeamSelector />}
+
+      {/* CFB filter — shown when CFB mode is active */}
+      {currentMode === 'mode8' && <CfbFilterPanel />}
 
       {/* Text Composer — shown when TEXT mode is active */}
       {currentMode === 'mode6' && <TextComposer />}
