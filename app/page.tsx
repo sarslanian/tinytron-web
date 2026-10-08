@@ -13,6 +13,7 @@ const MODES = [
   { id: 'mode6', label: 'TEXT',      icon: '✏️', desc: 'Custom message' },
   { id: 'mode7', label: 'TRAIN',     icon: '🚆', desc: 'CTA Brown Line' },
   { id: 'mode8', label: 'CFB',       icon: '🏟️', desc: 'College scores' },
+  { id: 'mode9', label: 'SCREENSAVER', icon: '🌈', desc: 'Nyan cat' },
 ];
 
 // Modes with a settings panel below the grid
